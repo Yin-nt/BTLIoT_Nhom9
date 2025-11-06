@@ -1,0 +1,10 @@
+data/images/*
+data/test/**
+data/users/**
+output/verify/**
+
+models/w600k_r50.onnx
+
+venv
+
+__pycache__/
