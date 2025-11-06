@@ -60,7 +60,7 @@ Face Recognization/
 
 ## Cài đặt
 
-Tải w600k_r50.onnx về folder models từ https://github.com/yakhyo/face-reidentification/releases/tag/v0.0.1
+Tải w600k_r50.onnx về folder models từ https://github.com/yakhyo/face-reidentification/releases/tag/smart-locker.0.1
 
 ```powershell
 # 1. Vào thư mục dự án
