@@ -7,6 +7,7 @@ Hệ thống nhận diện khuôn mặt **API + Camera Test**.
 ---
 
 ## Cấu trúc thư mục
+```
 Face Recognization/
 ├── api/                    # FastAPI server
 │   ├── main.py             # Entry point API
@@ -45,7 +46,7 @@ Face Recognization/
 │
 ├── requirements.txt        # Thư viện cần cài
 └── README.md               
-
+```
 
 ---
 
