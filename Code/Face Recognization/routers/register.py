@@ -37,12 +37,23 @@ async def register_user(
     - **acc**: Mã định danh duy nhất
     - **files**: 5-20 ảnh khuôn mặt (JPG/PNG)
     """
+    print("\n" + "="*50)
+    print("📝 REGISTER REQUEST RECEIVED")
+    print(f"👤 Name: {name}")
+    print(f"🆔 Account: {acc}")
+    print(f"📸 Files: {len(files)} images")
+    print(f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("="*50)
+    
     # === VALIDATION ===
     if len(files) < 5:
+        print("❌ ERROR: Not enough images (need ≥5)")
         raise HTTPException(status_code=400, detail="Cần ít nhất 5 ảnh!")
     if len(files) > 20:
+        print("❌ ERROR: Too many images (max 20)")
         raise HTTPException(status_code=400, detail="Tối đa 20 ảnh!")
     if os.path.exists(os.path.join(DATA_DIR, f"{acc}.pkl")):
+        print(f"❌ ERROR: Account {acc} already exists")
         raise HTTPException(status_code=400, detail="Mã acc đã tồn tại!")
 
     embeddings = []
@@ -83,6 +94,7 @@ async def register_user(
             continue
 
     if len(embeddings) < 3:
+        print(f"❌ ERROR: Not enough valid images (got {len(embeddings)}, need ≥3)")
         raise HTTPException(status_code=400, detail="Không đủ ảnh hợp lệ (cần ≥3)")
 
     mean_emb = np.mean(embeddings, axis=0)
@@ -99,6 +111,9 @@ async def register_user(
     with open(user_path, "wb") as f:
         pickle.dump(user_data, f)
 
+    print(f"✅ REGISTERED: {name} ({acc}) with {len(embeddings)} images")
+    print(f"💾 Saved to: {user_path}")
+    
     return JSONResponse({
         "status": "success",
         "message": f"Đã đăng ký {name} ({acc}) với {len(embeddings)} ảnh",

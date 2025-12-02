@@ -2,9 +2,9 @@ data/images/*
 data/test/**
 data/users/**
 output/verify/**
-
+data/debug_verify/*
 models/w600k_r50.onnx
 
-venv
+.venv/
 
 __pycache__/

@@ -27,20 +27,34 @@
 #include "esp_camera.h"
 #include "esp_http_client.h"
 #include <ArduinoJson.h>
+#include <PubSubClient.h>  // Thư viện MQTT
+#include <ESP32Servo.h>    // Thư viện Servo
 
 // ============================================
 // CẤU HÌNH WIFI & API
 // ============================================
 const char* ssid = "vu";          // Thay SSID WiFi của bạn
 const char* password = "12345678";  // Thay mật khẩu WiFi
-const char* serverUrl = "http://192.168.136.74:8000/api/verify";  // THAY XXX BẰNG IP MÁY TÍNH (xem ipconfig)
+const char* serverUrl = "http://192.168.219.74:8000/api/verify";  // THAY XXX BẰNG IP MÁY TÍNH (xem ipconfig)
 
 // ============================================
-// CẤU HÌNH GPIO (RELAY/SERVO)
+// CẤU HÌNH MQTT
 // ============================================
-#define RELAY_PIN 12        // GPIO điều khiển relay (hoặc servo)
+const char* mqttBroker = "test.mosquitto.org";  // HiveMQ public broker
+const int mqttPort = 1883;
+const char* mqttClientId = "ESP32CAM_namvu";  // THAY ĐỔI để tránh trùng với ESP32 khác
+const char* mqttTopic = "iot/door/verify/result";  // Topic nhận kết quả verify
+
+// ============================================
+// CẤU HÌNH GPIO (SERVO)
+// ============================================
+#define SERVO_PIN 12        // GPIO điều khiển servo
 #define BUTTON_PIN 13       // GPIO nút bấm để chụp ảnh (tùy chọn)
 #define LED_FLASH 4         // GPIO đèn flash (built-in)
+
+// Góc servo
+#define SERVO_LOCK_ANGLE 0      // Góc khóa cửa (0°)
+#define SERVO_UNLOCK_ANGLE 90   // Góc mở khóa (90°)
 
 // ============================================
 // CẤU HÌNH CAMERA (AI-Thinker ESP32-CAM)
@@ -68,7 +82,14 @@ const char* serverUrl = "http://192.168.136.74:8000/api/verify";  // THAY XXX B�
 // ============================================
 bool wifiConnected = false;
 unsigned long lastCaptureTime = 0;
-const unsigned long captureInterval = 5000;  // Chụp ảnh mỗi 5 giây (thay đổi tùy ý: 3000=3s, 5000=5s, 10000=10s)
+const unsigned long captureInterval = 5000;
+
+// MQTT client
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
+// Servo motor
+Servo doorServo; 
 
 // ============================================
 // KHỞI TẠO CAMERA
@@ -96,7 +117,7 @@ bool initCamera() {
   config.xclk_freq_hz = 10000000;  // 10MHz (giảm từ 20MHz để tiết kiệm dòng)
   config.pixel_format = PIXFORMAT_JPEG;
 
-  // Chất lượng ảnh - GIẢM XUỐNG ĐỂ TIẾT KIỆM DÒNG (khắc phục brownout)
+  // Chất lượng ảnh - Nếu nguồn 5V/2A đủ mạnh, dùng VGA để nhận diện tốt hơn
   if(psramFound()){
     config.frame_size = FRAMESIZE_QVGA;  // QVGA: 320x240 (thay vì VGA)
     config.jpeg_quality = 12;            // 0-63, càng thấp càng rõ
@@ -116,23 +137,104 @@ bool initCamera() {
 
   // Cài đặt sensor (tùy chỉnh độ sáng, contrast, saturation)
   sensor_t * s = esp_camera_sensor_get();
-  s->set_brightness(s, 0);     // -2 to 2
-  s->set_contrast(s, 0);       // -2 to 2
+  s->set_brightness(s, 2);     // -2 to 2 → TĂNG LÊN 2 (sáng nhất)
+  s->set_contrast(s, 1);       // -2 to 2 → TĂNG contrast lên 1
   s->set_saturation(s, 0);     // -2 to 2
   s->set_whitebal(s, 1);       // 0 = disable , 1 = enable
-  s->set_awb_gain(s, 1);       // 0 = disable , 1 = enable
+  s->set_awb_gain(s, 1);       // 0 = disable , 1 = enable (auto white balance gain)
   s->set_wb_mode(s, 0);        // 0 to 4 - if awb_gain enabled
-  s->set_exposure_ctrl(s, 1);  // 0 = disable , 1 = enable
+  s->set_exposure_ctrl(s, 1);  // 0 = disable , 1 = enable (auto exposure)
   s->set_aec2(s, 0);           // 0 = disable , 1 = enable
-  s->set_ae_level(s, 0);       // -2 to 2
-  s->set_gain_ctrl(s, 1);      // 0 = disable , 1 = enable
-  s->set_agc_gain(s, 0);       // 0 to 30
-  s->set_gainceiling(s, (gainceiling_t)0);  // 0 to 6
+  s->set_ae_level(s, 2);       // -2 to 2 → TĂNG LÊN 2 (exposure cao nhất)
+  s->set_gain_ctrl(s, 1);      // 0 = disable , 1 = enable (auto gain)
+  s->set_agc_gain(s, 10);      // 0 to 30 → TĂNG LÊN 10 (gain cao hơn)
+  s->set_gainceiling(s, (gainceiling_t)6);  // 0 to 6 → TĂNG LÊN 6 (gain ceiling cao nhất)
   s->set_hmirror(s, 0);        // 0 = disable , 1 = enable (mirror horizontal)
   s->set_vflip(s, 0);          // 0 = disable , 1 = enable (flip vertical)
 
   Serial.println("Camera init OK");
   return true;
+}
+
+// ============================================
+// CALLBACK MQTT - XỬ LÝ MESSAGE NHẬN ĐƯỢC
+// ============================================
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("📩 MQTT Message received on topic: ");
+  Serial.println(topic);
+  
+  // Convert payload to string
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  
+  Serial.print("📄 Payload: ");
+  Serial.println(message);
+  
+  // Parse JSON
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, message);
+  
+  if (error) {
+    Serial.print("❌ JSON parse failed: ");
+    Serial.println(error.c_str());
+    return;
+  }
+  
+  const char* status = doc["status"];
+  
+  if (strcmp(status, "success") == 0) {
+    // XÁC THỰC THÀNH CÔNG - MỞ KHÓA
+    const char* name = doc["name"];
+    const char* acc = doc["acc"];
+    float score = doc["score"];
+    
+    Serial.println("\n✅ VERIFIED VIA MQTT!");
+    Serial.printf("👤 Name: %s\n", name);
+    Serial.printf("🆔 Account: %s\n", acc);
+    Serial.printf("📊 Score: %.3f\n", score);
+    
+    // MỞ KHÓA - QUAY SERVO
+    doorServo.write(SERVO_UNLOCK_ANGLE);
+    Serial.printf("🔓 DOOR UNLOCKED (Servo: %d°)\n", SERVO_UNLOCK_ANGLE);
+    delay(3000);  // Giữ mở 3 giây
+    
+    // KHÓA LẠI
+    doorServo.write(SERVO_LOCK_ANGLE);
+    Serial.printf("🔒 DOOR LOCKED (Servo: %d°)\n\n", SERVO_LOCK_ANGLE);
+    
+  } else {
+    // XÁC THỰC THẤT BẠI
+    const char* message = doc["message"];
+    Serial.println("\n❌ VERIFICATION FAILED (MQTT)");
+    Serial.printf("Reason: %s\n\n", message ? message : "Unknown");
+  }
+}
+
+// ============================================
+// KẾT NỐI MQTT
+// ============================================
+void connectMQTT() {
+  while (!mqttClient.connected()) {
+    Serial.print("🔌 Connecting to MQTT broker: ");
+    Serial.println(mqttBroker);
+    
+    if (mqttClient.connect(mqttClientId)) {
+      Serial.println("✅ MQTT Connected!");
+      
+      // Subscribe topic
+      mqttClient.subscribe(mqttTopic);
+      Serial.print("📡 Subscribed to topic: ");
+      Serial.println(mqttTopic);
+      
+    } else {
+      Serial.print("❌ MQTT connection failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" retrying in 5 seconds...");
+      delay(5000);
+    }
+  }
 }
 
 // ============================================
@@ -289,12 +391,14 @@ void processVerifyResult(String jsonResponse) {
     Serial.printf("Account: %s\n", acc);
     Serial.printf("Score: %.3f\n", score);
     
-    // MỞ KHÓA (bật relay 3 giây)
-    digitalWrite(RELAY_PIN, HIGH);
-    Serial.println("🔓 DOOR UNLOCKED");
-    delay(3000);  // Mở khóa 3 giây
-    digitalWrite(RELAY_PIN, LOW);
-    Serial.println("🔒 DOOR LOCKED");
+    // MỞ KHÓA - QUAY SERVO
+    doorServo.write(SERVO_UNLOCK_ANGLE);
+    Serial.printf("🔓 DOOR UNLOCKED (Servo: %d°)\n", SERVO_UNLOCK_ANGLE);
+    delay(3000);  // Giữ mở 3 giây
+    
+    // KHÓA LẠI
+    doorServo.write(SERVO_LOCK_ANGLE);
+    Serial.printf("🔒 DOOR LOCKED (Servo: %d°)\n", SERVO_LOCK_ANGLE);
     
   } else {
     // XÁC THỰC THẤT BẠI
@@ -315,13 +419,13 @@ void processVerifyResult(String jsonResponse) {
 void captureAndVerify() {
   Serial.println("\n=== CAPTURING IMAGE ===");
   
-  // Bật flash (tùy chọn - nếu điều kiện ánh sáng kém)
-  // digitalWrite(LED_FLASH, HIGH);
-  // delay(100);
+  // Bật flash để tăng độ sáng (nếu điều kiện ánh sáng kém)
+  digitalWrite(LED_FLASH, HIGH);
+  delay(200);  // Đợi flash ổn định
   
   camera_fb_t * fb = esp_camera_fb_get();
   
-  // digitalWrite(LED_FLASH, LOW);
+  digitalWrite(LED_FLASH, LOW);  // Tắt flash ngay sau khi chụp
   
   if (!fb) {
     Serial.println("Camera capture failed!");
@@ -344,12 +448,14 @@ void setup() {
   Serial.println("\n\n=== ESP32-CAM Face Verify ===");
   
   // Cấu hình GPIO
-  pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_FLASH, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  
-  digitalWrite(RELAY_PIN, LOW);   // Khóa mặc định
   digitalWrite(LED_FLASH, LOW);   // Tắt flash
+  
+  // Khởi tạo servo
+  doorServo.attach(SERVO_PIN);
+  doorServo.write(SERVO_LOCK_ANGLE);  // Khóa mặc định
+  Serial.printf("🔧 Servo initialized on GPIO %d (Lock angle: %d°)\n", SERVO_PIN, SERVO_LOCK_ANGLE);
   
   // Khởi tạo camera
   if (!initCamera()) {
@@ -370,6 +476,13 @@ void setup() {
     ESP.restart();
   }
   
+  // Cấu hình MQTT
+  mqttClient.setServer(mqttBroker, mqttPort);
+  mqttClient.setCallback(mqttCallback);
+  
+  // Kết nối MQTT
+  connectMQTT();
+  
   Serial.println("\n=== READY ===");
   Serial.println("Press button or wait for auto-capture...");
 }
@@ -386,6 +499,12 @@ void loop() {
     return;
   }
   
+  // Kiểm tra và duy trì kết nối MQTT
+  if (!mqttClient.connected()) {
+    connectMQTT();
+  }
+  mqttClient.loop();  // Xử lý MQTT messages
+  
   // Chế độ 1: Nút bấm (ưu tiên)
   if (digitalRead(BUTTON_PIN) == LOW) {
     delay(50);  // Debounce
@@ -398,11 +517,10 @@ void loop() {
     }
   }
   
-  // Chế độ 2: Tự động chụp (ĐÃ BẬT - chụp mỗi 3 giây)
+  // Chế độ 2: Tự động chụp (ĐÃ BẬT - chụp mỗi 5 giây)
   if (millis() - lastCaptureTime > captureInterval) {
     lastCaptureTime = millis();
     captureAndVerify();
-    const unsigned long captureInterval = 3000;  // Chụp ảnh mỗi 3 giây
   }
   
   delay(100);
