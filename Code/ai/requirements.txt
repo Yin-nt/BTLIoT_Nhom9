@@ -1,0 +1,25 @@
+# AI Service Dependencies - Tested on Windows with Python 3.11
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Computer Vision
+opencv-python==4.8.1.78
+numpy==1.26.2
+
+# Deep Learning - Compatible versions for Windows
+torch==2.1.2
+torchvision==0.16.2
+onnxruntime==1.16.3
+
+# YOLO (use older stable version to avoid torch conflicts)
+ultralytics==8.0.196
+
+# Utilities
+pillow==10.1.0
+pyyaml==6.0.1
+aiofiles==23.2.1
+pydantic==2.5.3
+
+# MQTT Client (use paho-mqtt instead of mqtt)
+paho-mqtt==1.6.1

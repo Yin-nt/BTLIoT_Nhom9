@@ -1,0 +1,18 @@
+models:
+  yoloface: "models/yolov8n-face-lindevs.pt"
+  arcface: "models/w600k_r50.onnx"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+face_detection:
+  confidence_threshold: 0.5
+  padding_ratio: 0.4
+
+face_recognition:
+  similarity_threshold: 0.7
+  embedding_size: 512
+
+liveness_detection:
+  laplacian_threshold: 50
