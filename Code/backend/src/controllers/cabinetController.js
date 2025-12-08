@@ -349,6 +349,7 @@ const getAlerts = async (req, res) => {
   }
 };
 
+
 const requestCabinetAccess = async (req, res) => {
   try {
     const { cabinet_id, name, location } = req.body;

@@ -183,3 +183,91 @@ exports.getStatistics = async (req, res) => {
     res.status(500).json({ error: "Internal server error" })
   }
 }
+
+exports.createAccessLogFromESP32 = async (req, res) => {
+  try {
+    const { device_id, event_type, timestamp, data } = req.body;
+
+    // Validate required fields
+    if (!device_id || !event_type || !timestamp) {
+      return res.status(400).json({
+        error: "Missing required fields: device_id, event_type, timestamp",
+      });
+    }
+
+    // Find cabinet by device_id
+    const [cabinets] = await pool.query(
+      "SELECT id, owner_id FROM cabinets WHERE cabinet_id = ?", 
+      [device_id]
+    );
+
+    if (cabinets.length === 0) {
+      return res.status(404).json({ error: `Cabinet not found: ${device_id}` });
+    }
+
+    const cabinet = cabinets[0];
+
+    // Default values
+    let success = false;
+    let alert_type = "none";
+    let user_id = null;
+    const access_type = "face"; // default as required
+
+    switch (event_type) {
+      case "verify_success":
+        success = true;
+        alert_type = "none";
+
+        if (data?.acc) {
+          const [users] = await pool.query(
+            "SELECT id FROM users WHERE username = ?", 
+            [data.acc]
+          );
+          if (users.length > 0) user_id = users[0].id;
+        }
+        break;
+
+      case "verify_failed":
+      case "unauthorized":
+        success = false;
+        alert_type = "unauthorized";
+        break;
+
+      case "tamper":
+        success = false;
+        alert_type = "tamper";
+        break;
+
+      default:
+        alert_type = "none";
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO access_logs 
+        (cabinet_id, user_id, access_type, success, alert_type, timestamp) 
+       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?))`,
+      [
+        cabinet.id,
+        user_id,
+        access_type,
+        success ? 1 : 0,
+        alert_type,
+        timestamp / 1000
+      ]
+    );
+
+    console.log(`[ESP32 Event] ${event_type} from ${device_id} -> Success: ${success}, Alert: ${alert_type}`);
+
+    res.status(201).json({
+      message: "Access log recorded",
+      log_id: result.insertId,
+      success,
+      alert_type
+    });
+
+  } catch (error) {
+    console.error("Error saving access log:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+

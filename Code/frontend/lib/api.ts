@@ -134,4 +134,19 @@ export const api = {
       method: "POST",
       body: formData,
     }),
+
+  // Access Logs
+  createAccessLogFromESP32: (payload: {
+    device_id: string;
+    event_type: string;
+    timestamp: number;
+    data?: { name?: string; acc?: string; score?: number };
+  }) =>
+    apiRequest("/api/access-logs/esp32", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 }
+
+

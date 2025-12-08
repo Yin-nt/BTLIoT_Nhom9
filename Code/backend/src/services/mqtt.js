@@ -115,12 +115,18 @@ class MQTTService {
   }
 
   sendControlCommand(cabinetId, action, userId) {
-    this.publish(`cabinet/${cabinetId}/control`, {
+    const topic = "iot/door/control"
+    const message = {
       action, // 'lock' or 'unlock'
+      cabinet_id: cabinetId,
       user_id: userId,
       timestamp: Date.now(),
-    })
+    }
+    
+    this.publish(topic, message)
+    console.log(`🚪 Sent ${action} command to ${cabinetId}`)
   }
+
 
   disconnect() {
     if (this.client) {
