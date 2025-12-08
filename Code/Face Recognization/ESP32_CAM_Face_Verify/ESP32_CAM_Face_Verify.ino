@@ -46,11 +46,12 @@ const char* mqttClientId = "ESP32CAM_namvu";  // THAY ĐỔI để tránh trùng
 const char* mqttTopic = "iot/door/verify/result";  // Topic nhận kết quả verify
 
 // ============================================
-// CẤU HÌNH GPIO (SERVO)
+// CẤU HÌNH GPIO (SERVO + PIR)
 // ============================================
-#define SERVO_PIN 12        // GPIO điều khiển servo
-#define BUTTON_PIN 13       // GPIO nút bấm để chụp ảnh (tùy chọn)
+#define SERVO_PIN   14      // GPIO điều khiển servo (IO14)
+#define BUTTON_PIN 13       // GPIO nút bấm để chụp ảnh (IO13)
 #define LED_FLASH 4         // GPIO đèn flash (built-in)
+#define PIR_PIN 15          // GPIO cảm biến PIR (IO15) - THAY ĐỔI TỪ GPIO 2
 
 // Góc servo
 #define SERVO_LOCK_ANGLE 0      // Góc khóa cửa (0°)
@@ -89,7 +90,12 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
 // Servo motor
-Servo doorServo; 
+Servo doorServo;
+
+// PIR sensor
+bool motionDetected = false;
+unsigned long lastMotionTime = 0;
+const unsigned long motionCooldown = 2000;  // Cooldown 2 giây sau khi phát hiện chuyển động 
 
 // ============================================
 // KHỞI TẠO CAMERA
@@ -120,9 +126,10 @@ bool initCamera() {
   // Chất lượng ảnh - Nếu nguồn 5V/2A đủ mạnh, dùng VGA để nhận diện tốt hơn
   if(psramFound()){
     config.frame_size = FRAMESIZE_QVGA;  // QVGA: 320x240 (thay vì VGA)
-    config.jpeg_quality = 12;            // 0-63, càng thấp càng rõ
+    config.jpeg_quality = 15;            // 0-63, càng thấp càng rõ
     config.fb_count = 1;                 // Giảm buffer từ 2 xuống 1
-  } else {
+  } 
+  else {
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 15;
     config.fb_count = 1;
@@ -450,7 +457,10 @@ void setup() {
   // Cấu hình GPIO
   pinMode(LED_FLASH, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  digitalWrite(LED_FLASH, LOW);   // Tắt flash
+  pinMode(PIR_PIN, INPUT_PULLDOWN);  // Cảm biến PIR với pull-down (tránh floating khi chưa kết nối)
+  digitalWrite(LED_FLASH, LOW);      // Tắt flash
+  
+  Serial.println("🔍 PIR sensor initialized on GPIO 15 (IO15) with PULLDOWN");
   
   // Khởi tạo servo
   doorServo.attach(SERVO_PIN);
@@ -517,10 +527,32 @@ void loop() {
     }
   }
   
-  // Chế độ 2: Tự động chụp (ĐÃ BẬT - chụp mỗi 5 giây)
-  if (millis() - lastCaptureTime > captureInterval) {
-    lastCaptureTime = millis();
-    captureAndVerify();
+  // Chế độ 2: PIR Motion Detection (phát hiện chuyển động)
+  int pirState = digitalRead(PIR_PIN);
+  
+  // Hiển thị trạng thái PIR liên tục (theo dõi mọi thay đổi)
+  static int lastPirState = -1;  // -1 = chưa khởi tạo
+  if (pirState != lastPirState) {
+    Serial.printf("PIR Status Changed: %s (GPIO %d) at %lu ms\n", 
+                  pirState == HIGH ? "HIGH - Motion detected" : "LOW - No motion", 
+                  PIR_PIN,
+                  millis());
+    lastPirState = pirState;
+  }
+  
+  if (pirState == HIGH && !motionDetected) {
+    // Phát hiện chuyển động MỚI
+    if (millis() - lastMotionTime > motionCooldown) {
+      motionDetected = true;
+      lastMotionTime = millis();
+      
+      Serial.println("\n🚶 MOTION DETECTED! Starting capture...");
+      captureAndVerify();
+      
+      delay(1000);  // Đợi 1 giây trước khi cho phép phát hiện tiếp
+    }
+  } else if (pirState == LOW) {
+    motionDetected = false;  // Reset trạng thái khi không có chuyển động
   }
   
   delay(100);
