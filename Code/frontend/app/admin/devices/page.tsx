@@ -3,7 +3,6 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,10 +37,20 @@ interface Device {
   is_online: boolean;
   last_seen: string;
   created_at: string;
+  owner_id?: number;
+  owner_name?: string;
+}
+
+interface User {
+  id: number;
+  username: string;
+  full_name: string;
+  email: string;
 }
 
 export default function AdminDevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPairingMode, setIsPairingMode] = useState(false);
@@ -51,20 +60,32 @@ export default function AdminDevicesPage() {
     name: "",
     location: "",
     mqtt_topic: "",
+    owner_id: "",
   });
 
   useEffect(() => {
     fetchDevices();
+    fetchUsers();
   }, []);
 
   const fetchDevices = async () => {
     try {
       const data = await api.getCabinets();
+      console.log(data);
       setDevices(data);
     } catch (error) {
       toast.error("Failed to fetch devices");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const data = await api.getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error("[v0] Failed to fetch users:", error);
     }
   };
 
@@ -82,13 +103,28 @@ export default function AdminDevicesPage() {
           name: formData.name || `Cabinet ${formData.cabinet_id}`,
           location: formData.location,
         });
+
+        if (formData.owner_id) {
+          await api.assignCabinetOwner(
+            editingDevice.cabinet_id,
+            Number.parseInt(formData.owner_id)
+          );
+        }
+
         toast.success("Device updated successfully");
       } else {
-        await api.createDevice({
+        const response = await api.createDevice({
           cabinet_id: formData.cabinet_id,
           name: formData.name || `Cabinet ${formData.cabinet_id}`,
           location: formData.location,
         });
+
+        if (formData.owner_id && response.id) {
+          await api.assignCabinetOwner(
+            response.id,
+            Number.parseInt(formData.owner_id)
+          );
+        }
         toast.success("Device created successfully");
       }
 
@@ -96,7 +132,7 @@ export default function AdminDevicesPage() {
       resetForm();
       fetchDevices();
     } catch (error: any) {
-      console.error("[v0] Device creation error:", error);
+      console.error("[v0] Device operation error:", error);
       toast.error(error.message || "Failed to save device");
     }
   };
@@ -132,143 +168,185 @@ export default function AdminDevicesPage() {
       name: "",
       location: "",
       mqtt_topic: "",
+      owner_id: "",
     });
     setEditingDevice(null);
   };
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Device Management</h1>
-          <div className="flex gap-2">
-            <Button
-              onClick={startPairing}
-              variant="outline"
-              disabled={isPairingMode}
-            >
-              <Wifi className="mr-2 h-4 w-4" />
-              {isPairingMode ? "Pairing..." : "Pair New Device"}
-            </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Device
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingDevice ? "Edit Device" : "Add New Device"}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cabinet_id">Device ID *</Label>
-                    <Input
-                      id="cabinet_id"
-                      value={formData.cabinet_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, cabinet_id: e.target.value })
-                      }
-                      placeholder="ESP32-11111"
-                      required
-                      disabled={!!editingDevice}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Unique identifier for the cabinet (e.g., ESP32-11111)
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Display Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      placeholder="Cabinet 1 or leave empty for auto-generate"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Optional: Friendly name (auto-generated if empty)
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Location *</Label>
-                    <Input
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) =>
-                        setFormData({ ...formData, location: e.target.value })
-                      }
-                      placeholder="Tầng 1 - 101"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Physical location of the device
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mqtt_topic">MQTT Topic (Optional)</Label>
-                    <Input
-                      id="mqtt_topic"
-                      value={formData.mqtt_topic}
-                      onChange={(e) =>
-                        setFormData({ ...formData, mqtt_topic: e.target.value })
-                      }
-                      placeholder="cabinet/esp32-11111"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Auto-generated if empty: cabinet/{"<device_id>"}
-                    </p>
-                  </div>
+    <div className="p-8 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Device Management</h1>
+        <div className="flex gap-2">
+          <Button
+            onClick={startPairing}
+            variant="outline"
+            disabled={isPairingMode}
+          >
+            <Wifi className="mr-2 h-4 w-4" />
+            {isPairingMode ? "Pairing..." : "Pair New Device"}
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Device
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingDevice ? "Edit Device" : "Add New Device"}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cabinet_id">Device ID *</Label>
+                  <Input
+                    id="cabinet_id"
+                    value={formData.cabinet_id}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cabinet_id: e.target.value })
+                    }
+                    placeholder="ESP32-11111"
+                    required
+                    disabled={!!editingDevice}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unique identifier for the cabinet (e.g., ESP32-11111)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Display Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="Cabinet 1 or leave empty for auto-generate"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional: Friendly name (auto-generated if empty)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location *</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) =>
+                      setFormData({ ...formData, location: e.target.value })
+                    }
+                    placeholder="Tầng 1 - 101"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Physical location of the device
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mqtt_topic">MQTT Topic (Optional)</Label>
+                  <Input
+                    id="mqtt_topic"
+                    value={formData.mqtt_topic}
+                    onChange={(e) =>
+                      setFormData({ ...formData, mqtt_topic: e.target.value })
+                    }
+                    placeholder="cabinet/esp32-11111"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Auto-generated if empty: cabinet/{"<device_id>"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="owner_id">Owner (Optional)</Label>
+                  <select
+                    id="owner_id"
+                    value={formData.owner_id}
+                    onChange={(e) =>
+                      setFormData({ ...formData, owner_id: e.target.value })
+                    }
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">-- No owner (unassigned) --</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name} ({user.username})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Assign this cabinet to a specific user (can be changed
+                    later)
+                  </p>
+                </div>
 
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      {editingDevice ? "Update" : "Create"} Device
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    {editingDevice ? "Update" : "Create"} Device
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Devices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
+      <Card>
+        <CardHeader>
+          <CardTitle>All Devices</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Device ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Online</TableHead>
+                <TableHead>Last Seen</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {devices.length === 0 ? (
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Device ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Online</TableHead>
-                  <TableHead>Last Seen</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableCell
+                    colSpan={9}
+                    className="text-center text-muted-foreground py-8"
+                  >
+                    No devices found. Add a device to get started.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {devices.map((device) => (
-                  <TableRow key={device.cabinet_id}>
-                    <TableCell>{device.cabinet_id}</TableCell>
+              ) : (
+                devices.map((device) => (
+                  <TableRow key={device.id}>
+                    <TableCell>{device.id}</TableCell>
                     <TableCell className="font-mono text-sm">
                       {device.device_id}
                     </TableCell>
                     <TableCell>{device.name}</TableCell>
                     <TableCell>{device.location}</TableCell>
+                    <TableCell>
+                      {device.owner_name ? (
+                        <span className="text-sm">{device.owner_name}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Unassigned
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -307,6 +385,7 @@ export default function AdminDevicesPage() {
                               name: device.name,
                               location: device.location,
                               mqtt_topic: device.mqtt_topic || "",
+                              owner_id: device.owner_id?.toString() || "",
                             });
                             setIsDialogOpen(true);
                           }}
@@ -323,12 +402,12 @@ export default function AdminDevicesPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

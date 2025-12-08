@@ -17,4 +17,9 @@ router.post("/pairing/generate", auth, cabinetController.generatePairingCode)
 router.post("/pairing/pair", cabinetController.pairDevice)
 router.get("/alerts", auth, cabinetController.getAlerts)
 
+router.post("/request-access", auth, cabinetController.requestCabinetAccess)
+router.get("/requests", auth, cabinetController.getCabinetRequests)
+router.post("/requests/:request_id/approve", auth, cabinetController.approveCabinetRequest)
+router.post("/requests/:request_id/reject", auth, cabinetController.rejectCabinetRequest)
+
 module.exports = router

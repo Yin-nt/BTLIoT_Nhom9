@@ -1,99 +1,113 @@
-const { pool } = require("../config/database")
-const mqttService = require("../services/mqtt")
+const { pool } = require("../config/database");
+const mqttService = require("../services/mqtt");
 
 const getAllCabinets = async (req, res) => {
   try {
     const [cabinets] = await pool.query(`
       SELECT 
-        id,
-        cabinet_id,
-        name,
-        location,
-        lock_status as status,
-        status as online_status,
-        last_seen,
-        created_at
-      FROM cabinets 
-      ORDER BY created_at DESC
-    `)
-    res.json(cabinets)
+        c.id,
+        c.cabinet_id as device_id,
+        c.name,
+        c.location,
+        c.lock_status as status,
+        c.status as online_status,
+        c.status = 'online' as is_online,
+        c.last_seen,
+        c.created_at,
+        c.owner_id,
+        u.full_name as owner_name,
+        CONCAT('cabinet/', c.cabinet_id) as mqtt_topic
+      FROM cabinets c
+      LEFT JOIN users u ON c.owner_id = u.id
+      ORDER BY c.created_at DESC
+    `);
+    res.json(cabinets);
   } catch (error) {
-    console.error("Error fetching cabinets:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching cabinets:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const unlockCabinet = async (req, res) => {
   try {
-    const { cabinet_id } = req.params
-    const userId = req.user.userId
+    const { cabinet_id } = req.params;
+    const userId = req.user.userId;
 
     // Send MQTT command
-    mqttService.sendControlCommand(cabinet_id, "unlock", userId)
+    mqttService.sendControlCommand(cabinet_id, "unlock", userId);
 
-    await pool.query("UPDATE cabinets SET lock_status = 'unlocked' WHERE cabinet_id = ?", [cabinet_id])
+    await pool.query(
+      "UPDATE cabinets SET lock_status = 'unlocked' WHERE cabinets.id = ?",
+      [cabinet_id]
+    );
 
     // Log access
     await pool.query(
       `INSERT INTO access_logs 
       (cabinet_id, user_id, access_type, success) 
-      VALUES ((SELECT id FROM cabinets WHERE cabinet_id = ?), ?, 'remote', TRUE)`,
-      [cabinet_id, userId],
-    )
+      VALUES ((SELECT cabinets.id FROM cabinets WHERE cabinets.id = ?), ?, 'remote', TRUE)`,
+      [cabinet_id, userId]
+    );
 
-    res.json({ success: true, message: "Cabinet unlocked successfully" })
+    res.json({ status: "success", message: "Mở khoá thành công" });
   } catch (error) {
-    console.error("Error unlocking cabinet:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error unlocking cabinet:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const lockCabinet = async (req, res) => {
   try {
-    const { cabinet_id } = req.params
-    const userId = req.user.userId
+    const { cabinet_id } = req.params;
+    const userId = req.user.userId;
 
     // Send MQTT command
-    mqttService.sendControlCommand(cabinet_id, "lock", userId)
+    mqttService.sendControlCommand(cabinet_id, "lock", userId);
 
-    await pool.query("UPDATE cabinets SET lock_status = 'locked' WHERE cabinet_id = ?", [cabinet_id])
+    await pool.query(
+      "UPDATE cabinets SET lock_status = 'locked' WHERE cabinets.id = ?",
+      [cabinet_id]
+    );
 
     // Log access
     await pool.query(
       `INSERT INTO access_logs 
       (cabinet_id, user_id, access_type, success) 
-      VALUES ((SELECT id FROM cabinets WHERE cabinet_id = ?), ?, 'remote', TRUE)`,
-      [cabinet_id, userId],
-    )
+      VALUES ((SELECT cabinets.id FROM cabinets WHERE cabinets.id = ?), ?, 'remote', TRUE)`,
+      [cabinet_id, userId]
+    );
 
-    res.json({ success: true, message: "Cabinet locked successfully" })
+    res.json({ status: "failed", message: "Khoá tủ thành công" });
   } catch (error) {
-    console.error("Error locking cabinet:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error locking cabinet:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const getCabinetStatus = async (req, res) => {
   try {
-    const { cabinet_id } = req.params
+    const { cabinet_id } = req.params;
 
-    const [cabinets] = await pool.query("SELECT * FROM cabinets WHERE cabinet_id = ?", [cabinet_id])
+    const [cabinets] = await pool.query(
+      "SELECT * FROM cabinets WHERE cabinet_id = ?",
+      [cabinet_id]
+    );
 
     if (cabinets.length === 0) {
-      return res.status(404).json({ error: "Cabinet not found" })
+      return res.status(404).json({ error: "Cabinet not found" });
     }
 
-    res.json(cabinets[0])
+    res.json(cabinets[0]);
   } catch (error) {
-    console.error("Error fetching cabinet status:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching cabinet status:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const getAccessLogs = async (req, res) => {
   try {
-    const { cabinet_id } = req.params
-    const limit = Number.parseInt(req.query.limit) || 50
+    const { cabinet_id } = req.params;
+    const limit = Number.parseInt(req.query.limit) || 50;
 
     const [logs] = await pool.query(
       `SELECT 
@@ -107,183 +121,200 @@ const getAccessLogs = async (req, res) => {
       WHERE c.cabinet_id = ?
       ORDER BY al.timestamp DESC
       LIMIT ?`,
-      [cabinet_id, limit],
-    )
+      [cabinet_id, limit]
+    );
 
-    res.json(logs)
+    res.json(logs);
   } catch (error) {
-    console.error("Error fetching logs:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching logs:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const createCabinet = async (req, res) => {
   try {
-    const { cabinet_id, name, location } = req.body
+    const { cabinet_id, name, location } = req.body;
 
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" })
+      return res.status(403).json({ error: "Admin access required" });
     }
 
     // Check if cabinet already exists
-    const [existing] = await pool.query("SELECT id FROM cabinets WHERE cabinet_id = ?", [cabinet_id])
+    const [existing] = await pool.query(
+      "SELECT id FROM cabinets WHERE cabinet_id = ?",
+      [cabinet_id]
+    );
 
     if (existing.length > 0) {
-      return res.status(400).json({ error: "Cabinet already exists" })
+      return res.status(400).json({ error: "Cabinet already exists" });
     }
 
     const [result] = await pool.query(
       "INSERT INTO cabinets (cabinet_id, name, location, status, lock_status) VALUES (?, ?, ?, 'offline', 'locked')",
-      [cabinet_id, name || `Cabinet ${cabinet_id}`, location],
-    )
+      [cabinet_id, name || `Cabinet ${cabinet_id}`, location]
+    );
 
     res.status(201).json({
       message: "Cabinet created successfully",
       id: result.insertId,
       cabinet_id,
-    })
+    });
   } catch (error) {
-    console.error("Error creating cabinet:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error creating cabinet:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const updateCabinet = async (req, res) => {
   try {
-    const { name, location } = req.body
+    const { name, location } = req.body;
 
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" })
+      return res.status(403).json({ error: "Admin access required" });
     }
 
-    await pool.query("UPDATE cabinets SET name = ?, location = ? WHERE id = ?", [name, location, req.params.id])
+    await pool.query(
+      "UPDATE cabinets SET name = ?, location = ? WHERE id = ?",
+      [name, location, req.params.id]
+    );
 
-    res.json({ message: "Cabinet updated successfully" })
+    res.json({ message: "Cabinet updated successfully" });
   } catch (error) {
-    console.error("Error updating cabinet:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error updating cabinet:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const deleteCabinet = async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" })
+      return res.status(403).json({ error: "Admin access required" });
     }
 
     // Delete access logs first (foreign key constraint)
-    await pool.query("DELETE FROM access_logs WHERE cabinet_id = ?", [req.params.id])
-    await pool.query("DELETE FROM cabinets WHERE id = ?", [req.params.id])
+    await pool.query("DELETE FROM access_logs WHERE cabinet_id = ?", [
+      req.params.id,
+    ]);
+    await pool.query("DELETE FROM cabinets WHERE id = ?", [req.params.id]);
 
-    res.json({ message: "Cabinet deleted successfully" })
+    res.json({ message: "Cabinet deleted successfully" });
   } catch (error) {
-    console.error("Error deleting cabinet:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error deleting cabinet:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const assignOwner = async (req, res) => {
   try {
-    const { owner_id } = req.body
-    const cabinetId = req.params.id
+    const { owner_id } = req.body;
+    const cabinetId = req.params.id;
 
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" })
+      return res.status(403).json({ error: "Admin access required" });
     }
 
     // Verify owner exists
-    const [users] = await pool.query("SELECT id FROM users WHERE id = ?", [owner_id])
+    const [users] = await pool.query("SELECT id FROM users WHERE id = ?", [
+      owner_id,
+    ]);
     if (users.length === 0) {
-      return res.status(404).json({ error: "User not found" })
+      return res.status(404).json({ error: "User not found" });
     }
 
-    await pool.query("UPDATE cabinets SET owner_id = ? WHERE id = ?", [owner_id, cabinetId])
+    await pool.query("UPDATE cabinets SET owner_id = ? WHERE id = ?", [
+      owner_id,
+      cabinetId,
+    ]);
 
-    res.json({ message: "Owner assigned successfully" })
+    res.json({ message: "Owner assigned successfully" });
   } catch (error) {
-    console.error("Error assigning owner:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error assigning owner:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const generatePairingCode = async (req, res) => {
   try {
-    const { cabinet_id } = req.body
+    const { cabinet_id } = req.body;
 
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" })
+      return res.status(403).json({ error: "Admin access required" });
     }
 
     // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Set expiration to 10 minutes
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     const [result] = await pool.query(
       "INSERT INTO device_pairings (pairing_code, cabinet_id, expires_at) VALUES (?, (SELECT id FROM cabinets WHERE cabinet_id = ?), ?)",
-      [code, cabinet_id, expiresAt],
-    )
+      [code, cabinet_id, expiresAt]
+    );
 
     res.json({
       pairing_code: code,
       expires_in: 600, // seconds
       expires_at: expiresAt,
-    })
+    });
   } catch (error) {
-    console.error("Error generating pairing code:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error generating pairing code:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const pairDevice = async (req, res) => {
   try {
-    const { pairing_code, device_mac } = req.body
+    const { pairing_code, device_mac } = req.body;
 
     // Validate code
     const [pairings] = await pool.query(
       "SELECT * FROM device_pairings WHERE pairing_code = ? AND paired_at IS NULL AND expires_at > NOW()",
-      [pairing_code],
-    )
+      [pairing_code]
+    );
 
     if (pairings.length === 0) {
-      return res.status(400).json({ error: "Invalid or expired pairing code" })
+      return res.status(400).json({ error: "Invalid or expired pairing code" });
     }
 
-    const pairing = pairings[0]
+    const pairing = pairings[0];
 
     // Mark as paired
-    await pool.query("UPDATE device_pairings SET device_mac = ?, paired_at = NOW() WHERE id = ?", [
-      device_mac,
-      pairing.id,
-    ])
+    await pool.query(
+      "UPDATE device_pairings SET device_mac = ?, paired_at = NOW() WHERE id = ?",
+      [device_mac, pairing.id]
+    );
 
     // Update cabinet status
-    await pool.query("UPDATE cabinets SET status = 'online' WHERE id = ?", [pairing.cabinet_id])
+    await pool.query("UPDATE cabinets SET status = 'online' WHERE id = ?", [
+      pairing.cabinet_id,
+    ]);
 
     // Get cabinet info
-    const [cabinets] = await pool.query("SELECT * FROM cabinets WHERE id = ?", [pairing.cabinet_id])
+    const [cabinets] = await pool.query("SELECT * FROM cabinets WHERE id = ?", [
+      pairing.cabinet_id,
+    ]);
 
     res.json({
       success: true,
       cabinet: cabinets[0],
       message: "Device paired successfully",
-    })
+    });
   } catch (error) {
-    console.error("Error pairing device:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error pairing device:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 const getAlerts = async (req, res) => {
   try {
-    const userId = req.user.userId
-    const limit = Number.parseInt(req.query.limit) || 20
+    const userId = req.user.userId;
+    const limit = Number.parseInt(req.query.limit) || 20;
 
     let query = `
       SELECT 
@@ -296,27 +327,170 @@ const getAlerts = async (req, res) => {
       JOIN cabinets c ON al.cabinet_id = c.id
       LEFT JOIN users u ON al.user_id = u.id
       WHERE al.alert_type != 'none'
-    `
+    `;
 
-    const params = []
+    const params = [];
 
     // If not admin, only show alerts for owned cabinets
     if (req.user.role !== "admin") {
-      query += " AND c.owner_id = ?"
-      params.push(userId)
+      query += " AND c.owner_id = ?";
+      params.push(userId);
     }
 
-    query += " ORDER BY al.timestamp DESC LIMIT ?"
-    params.push(limit)
+    query += " ORDER BY al.timestamp DESC LIMIT ?";
+    params.push(limit);
 
-    const [alerts] = await pool.query(query, params)
+    const [alerts] = await pool.query(query, params);
 
-    res.json(alerts)
+    res.json(alerts);
   } catch (error) {
-    console.error("Error fetching alerts:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching alerts:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
+
+const requestCabinetAccess = async (req, res) => {
+  try {
+    const { cabinet_id, name, location } = req.body;
+    const userId = req.user.userId;
+
+    // Check if cabinet already exists
+    const [existing] = await pool.query(
+      "SELECT id, owner_id FROM cabinets WHERE cabinet_id = ?",
+      [cabinet_id]
+    );
+
+    if (existing.length > 0) {
+      if (existing[0].owner_id) {
+        return res.status(400).json({ error: "Cabinet already has an owner" });
+      }
+      // Cabinet exists but no owner - request ownership
+      await pool.query(
+        "INSERT INTO cabinet_requests (cabinet_id, user_id, status) VALUES (?, ?, 'pending')",
+        [existing[0].id, userId]
+      );
+      return res.json({ message: "Ownership request sent to admin" });
+    }
+
+    // Create new cabinet with pending status (no owner yet)
+    const [result] = await pool.query(
+      "INSERT INTO cabinets (cabinet_id, name, location, status, lock_status) VALUES (?, ?, ?, 'offline', 'locked')",
+      [cabinet_id, name || `Cabinet ${cabinet_id}`, location]
+    );
+
+    // Create request record
+    await pool.query(
+      "INSERT INTO cabinet_requests (cabinet_id, user_id, status) VALUES (?, ?, 'pending')",
+      [result.insertId, userId]
+    );
+
+    res.status(201).json({
+      message: "Cabinet registration request sent. Waiting for admin approval.",
+      id: result.insertId,
+      cabinet_id,
+    });
+  } catch (error) {
+    console.error("Error requesting cabinet access:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getCabinetRequests = async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const [requests] = await pool.query(
+      `SELECT 
+        cr.id as request_id,
+        cr.cabinet_id,
+        cr.user_id,
+        cr.status,
+        cr.created_at,
+        c.cabinet_id as cabinet_device_id,
+        c.name as cabinet_name,
+        c.location,
+        u.username,
+        u.email,
+        u.full_name
+      FROM cabinet_requests cr
+      JOIN cabinets c ON cr.cabinet_id = c.id
+      JOIN users u ON cr.user_id = u.id
+      WHERE cr.status = 'pending'
+      ORDER BY cr.created_at DESC`
+    );
+
+    res.json(requests);
+  } catch (error) {
+    console.error("Error fetching cabinet requests:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const approveCabinetRequest = async (req, res) => {
+  try {
+    const { request_id } = req.params;
+
+    // Check if user is admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    // Get request details
+    const [requests] = await pool.query(
+      "SELECT cabinet_id, user_id FROM cabinet_requests WHERE id = ? AND status = 'pending'",
+      [request_id]
+    );
+
+    if (requests.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Request not found or already processed" });
+    }
+
+    const { cabinet_id, user_id } = requests[0];
+
+    // Assign owner
+    await pool.query("UPDATE cabinets SET owner_id = ? WHERE id = ?", [
+      user_id,
+      cabinet_id,
+    ]);
+
+    // Update request status
+    await pool.query(
+      "UPDATE cabinet_requests SET status = 'approved', processed_at = NOW() WHERE id = ?",
+      [request_id]
+    );
+
+    res.json({ message: "Cabinet request approved and owner assigned" });
+  } catch (error) {
+    console.error("Error approving request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const rejectCabinetRequest = async (req, res) => {
+  try {
+    const { request_id } = req.params;
+
+    // Check if user is admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    await pool.query(
+      "UPDATE cabinet_requests SET status = 'rejected', processed_at = NOW() WHERE id = ? AND status = 'pending'",
+      [request_id]
+    );
+
+    res.json({ message: "Cabinet request rejected" });
+  } catch (error) {
+    console.error("Error rejecting request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 module.exports = {
   getAllCabinets,
@@ -331,4 +505,8 @@ module.exports = {
   generatePairingCode,
   pairDevice,
   getAlerts,
-}
+  requestCabinetAccess,
+  getCabinetRequests,
+  approveCabinetRequest,
+  rejectCabinetRequest,
+};

@@ -86,13 +86,37 @@ export const api = {
       method: "DELETE",
     }),
 
-  unlockCabinet: (cabinetId: string) =>
+  unlockCabinet: (cabinetId: number) =>
     apiRequest(`/api/cabinets/${cabinetId}/unlock`, {
       method: "POST",
     }),
 
-  lockCabinet: (cabinetId: string) =>
+  lockCabinet: (cabinetId: number) =>
     apiRequest(`/api/cabinets/${cabinetId}/lock`, {
+      method: "POST",
+    }),
+
+  assignCabinetOwner: (cabinetId: number, ownerId: number) =>
+    apiRequest(`/api/cabinets/${cabinetId}/assign-owner`, {
+      method: "POST",
+      body: JSON.stringify({ owner_id: ownerId }),
+    }),
+
+  requestCabinetAccess: (data: any) =>
+    apiRequest("/api/cabinets/request-access", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getCabinetRequests: () => apiRequest("/api/cabinets/requests"),
+
+  approveCabinetRequest: (requestId: number) =>
+    apiRequest(`/api/cabinets/requests/${requestId}/approve`, {
+      method: "POST",
+    }),
+
+  rejectCabinetRequest: (requestId: number) =>
+    apiRequest(`/api/cabinets/requests/${requestId}/reject`, {
       method: "POST",
     }),
 

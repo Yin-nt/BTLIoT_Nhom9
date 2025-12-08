@@ -279,6 +279,7 @@ export default function AdminUsersPage() {
                             id="webcam"
                             className="w-full rounded-lg"
                             autoPlay
+                            muted
                           />
                           <div className="flex gap-2">
                             <Button
@@ -345,13 +346,12 @@ export default function AdminUsersPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Images</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.user_id}>
+                {users.map((user, index) => (
+                  <TableRow key={`user-${user.user_id}-${index}`}>
                     <TableCell>{user.user_id}</TableCell>
                     <TableCell>{user.username}</TableCell>
                     <TableCell>{user.full_name}</TableCell>
@@ -365,15 +365,8 @@ export default function AdminUsersPage() {
                         {user.role}
                       </Badge>
                     </TableCell>
-                    <TableCell>{user.image_count}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          user.status === "active" ? "default" : "secondary"
-                        }
-                      >
-                        {user.status}
-                      </Badge>
+                      <Badge variant="outline">{user.image_count} ảnh</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
