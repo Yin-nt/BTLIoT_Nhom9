@@ -58,18 +58,24 @@ export const api = {
       method: "DELETE",
     }),
 
+  changePassword: (userId: number, data: { currentPassword: string; newPassword: string }) =>
+    apiRequest(`/api/users/${userId}/change-password`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   // Cabinets/Devices
   getCabinets: () => apiRequest("/api/cabinets"),
 
   getCabinet: (id: number) => apiRequest(`/api/cabinets/${id}`),
 
-  createDevice: (data: any) =>
+  createDevice: (data: { cabinet_id: string; name: string; location: string }) =>
     apiRequest("/api/cabinets", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  updateDevice: (id: number, data: any) =>
+  updateDevice: (id: number, data: { name: string; location: string }) =>
     apiRequest(`/api/cabinets/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -94,6 +100,9 @@ export const api = {
   getAccessLogs: (limit = 50) => apiRequest(`/api/access-logs?limit=${limit}`),
 
   getCabinetLogs: (cabinetId: string, limit = 50) => apiRequest(`/api/cabinets/${cabinetId}/logs?limit=${limit}`),
+
+  // Alerts
+  getAlerts: (limit = 20) => apiRequest(`/api/cabinets/alerts?limit=${limit}`),
 
   // Face Recognition
   verifyFace: (formData: FormData) =>
