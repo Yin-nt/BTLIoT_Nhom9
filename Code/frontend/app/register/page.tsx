@@ -19,7 +19,7 @@ export default function RegisterPage() {
   const [capturedImages, setCapturedImages] = useState<string[]>([])
   const [formData, setFormData] = useState({
     username: "",
-    fullName: "",
+    full_name: "",
     email: "",
     password: "",
   })
@@ -30,7 +30,7 @@ export default function RegisterPage() {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream
       videoRef.current.play().catch((err) => {
-        console.log("[v0] Video play error:", err)
+        console.log(" Video play error:", err)
         setError("Không thể phát video từ camera")
       })
     }
@@ -45,7 +45,7 @@ export default function RegisterPage() {
       setIsCameraOn(true)
       setError("")
     } catch (err) {
-      console.log("[v0] Camera error:", err)
+      console.log(" Camera error:", err)
       setError("Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập.")
     }
   }
@@ -90,7 +90,7 @@ export default function RegisterPage() {
     try {
       const formDataToSend = new FormData()
       formDataToSend.append("username", formData.username)
-      formDataToSend.append("fullName", formData.fullName)
+      formDataToSend.append("full_name", formData.full_name)
       formDataToSend.append("email", formData.email)
       formDataToSend.append("password", formData.password)
 
@@ -155,12 +155,12 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fullName">Họ và tên *</Label>
+                <Label htmlFor="full_name">Họ và tên *</Label>
                 <Input
-                  id="fullName"
+                  id="full_name"
                   required
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   placeholder="Nguyễn Văn A"
                 />
               </div>

@@ -34,7 +34,11 @@ export default function LoginPage() {
       if (response.ok) {
         localStorage.setItem("token", data.token)
         localStorage.setItem("user", JSON.stringify(data.user))
-        router.push("/dashboard")
+        if (data.user.role === "admin") {
+          router.push("/dashboard")
+        } else {
+          router.push("/my-cabinets")
+        }
       } else {
         setError(data.message || "Đăng nhập thất bại")
       }

@@ -15,11 +15,11 @@ const getAllCabinets = async (req, res) => {
         c.last_seen,
         c.created_at,
         c.owner_id,
-        u.full_name as owner_name,
+        u.username as owner_name,
         CONCAT('cabinet/', c.cabinet_id) as mqtt_topic
       FROM cabinets c
       LEFT JOIN users u ON c.owner_id = u.id
-      ORDER BY c.created_at DESC
+      ORDER BY c.id ASC
     `);
     res.json(cabinets);
   } catch (error) {
@@ -168,7 +168,8 @@ const createCabinet = async (req, res) => {
 
 const updateCabinet = async (req, res) => {
   try {
-    const { name, location } = req.body;
+    const {name, location, owner_id } = req.body;
+    const { id } = req.params;
 
     // Check if user is admin
     if (req.user.role !== "admin") {
@@ -176,8 +177,8 @@ const updateCabinet = async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE cabinets SET name = ?, location = ? WHERE id = ?",
-      [name, location, req.params.id]
+      "UPDATE cabinets SET name = ?, location = ?, owner_id = ? || NULL WHERE cabinets.id = ?",
+      [name, location,owner_id, id]
     );
 
     res.json({ message: "Cabinet updated successfully" });
@@ -259,7 +260,7 @@ const generatePairingCode = async (req, res) => {
 
     res.json({
       pairing_code: code,
-      expires_in: 600, // seconds
+      expires_in: 6000, // seconds
       expires_at: expiresAt,
     });
   } catch (error) {

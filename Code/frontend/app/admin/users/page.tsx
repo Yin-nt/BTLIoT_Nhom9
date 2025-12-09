@@ -29,7 +29,7 @@ import { UserPlus, Pencil, Trash2, Camera } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
-  user_id: number;
+  id: number;
   username: string;
   full_name: string;
   email: string;
@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
 
     try {
       if (editingUser) {
-        await api.updateUser(editingUser.user_id, {
+        await api.updateUser(editingUser.id, {
           username: formData.username,
           email: formData.email,
           full_name: formData.full_name,
@@ -90,12 +90,12 @@ export default function AdminUsersPage() {
         const form = new FormData();
         form.append("username", formData.username);
         form.append("password", formData.password);
-        form.append("fullName", formData.full_name);
+        form.append("full_name", formData.full_name);
         form.append("email", formData.email);
         form.append("role", formData.role);
 
         capturedImages.forEach((img, idx) => {
-          form.append("face_images", img, `face_${idx}.jpg`);
+          form.append("images", img, `face_${idx}.jpg`);
         });
 
         await api.registerUser(form);
@@ -345,14 +345,13 @@ export default function AdminUsersPage() {
                   <TableHead>Full Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Images</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user, index) => (
-                  <TableRow key={`user-${user.user_id}-${index}`}>
-                    <TableCell>{user.user_id}</TableCell>
+                  <TableRow key={`user-${user.id}-${index}`}>
+                    <TableCell>{user.id}</TableCell>
                     <TableCell>{user.username}</TableCell>
                     <TableCell>{user.full_name}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -364,9 +363,6 @@ export default function AdminUsersPage() {
                       >
                         {user.role}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.image_count} ảnh</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -390,7 +386,7 @@ export default function AdminUsersPage() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleDelete(user.user_id)}
+                          onClick={() => handleDelete(user.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

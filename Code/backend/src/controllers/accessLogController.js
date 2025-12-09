@@ -1,13 +1,13 @@
-const { pool } = require("../config/database")
+const { pool } = require("../config/database");
 
 // Get all access logs with pagination
 exports.getAllLogs = async (req, res) => {
   try {
-    const limit = Number.parseInt(req.query.limit) || 50
-    const offset = Number.parseInt(req.query.offset) || 0
-    const cabinetId = req.query.cabinetId
-    const userId = req.query.userId
-    const success = req.query.success
+    const limit = Number.parseInt(req.query.limit) || 50;
+    const offset = Number.parseInt(req.query.offset) || 0;
+    const cabinetId = req.query.cabinetId;
+    const user_id = req.query.user_id;
+    const success = req.query.success;
 
     let query = `
       SELECT 
@@ -24,65 +24,66 @@ exports.getAllLogs = async (req, res) => {
       JOIN cabinets c ON al.cabinet_id = c.id
       LEFT JOIN users u ON al.user_id = u.id
       WHERE 1=1
-    `
+    `;
 
-    const params = []
+    const params = [];
 
     if (cabinetId) {
-      query += " AND c.cabinet_id = ?"
-      params.push(cabinetId)
+      query += " AND c.cabinet_id = ?";
+      params.push(cabinetId);
     }
 
-    if (userId) {
-      query += " AND al.user_id = ?"
-      params.push(userId)
+    if (user_id) {
+      query += " AND al.user_id = ?";
+      params.push(user_id);
     }
 
     if (success !== undefined) {
-      query += " AND al.success = ?"
-      params.push(success === "true" ? 1 : 0)
+      query += " AND al.success = ?";
+      params.push(success === "true" ? 1 : 0);
     }
 
-    query += " ORDER BY al.timestamp DESC LIMIT ? OFFSET ?"
-    params.push(limit, offset)
+    query += " ORDER BY al.timestamp DESC LIMIT ? OFFSET ?";
+    params.push(limit, offset);
 
-    const [logs] = await pool.query(query, params)
+    const [logs] = await pool.query(query, params);
 
     // Get total count
-    let countQuery = "SELECT COUNT(*) as total FROM access_logs al JOIN cabinets c ON al.cabinet_id = c.id WHERE 1=1"
-    const countParams = []
+    let countQuery =
+      "SELECT COUNT(*) as total FROM access_logs al JOIN cabinets c ON al.cabinet_id = c.id WHERE 1=1";
+    const countParams = [];
 
     if (cabinetId) {
-      countQuery += " AND c.cabinet_id = ?"
-      countParams.push(cabinetId)
+      countQuery += " AND c.cabinet_id = ?";
+      countParams.push(cabinetId);
     }
-    if (userId) {
-      countQuery += " AND al.user_id = ?"
-      countParams.push(userId)
+    if (user_id) {
+      countQuery += " AND al.user_id = ?";
+      countParams.push(user_id);
     }
     if (success !== undefined) {
-      countQuery += " AND al.success = ?"
-      countParams.push(success === "true" ? 1 : 0)
+      countQuery += " AND al.success = ?";
+      countParams.push(success === "true" ? 1 : 0);
     }
 
-    const [countResult] = await pool.query(countQuery, countParams)
+    const [countResult] = await pool.query(countQuery, countParams);
 
     res.json({
       logs,
       total: countResult[0].total,
       limit,
       offset,
-    })
+    });
   } catch (error) {
-    console.error("Error fetching access logs:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching access logs:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 exports.getCabinetLogs = async (req, res) => {
   try {
-    const { cabinetId } = req.params
-    const limit = Number.parseInt(req.query.limit) || 100
+    const { cabinetId } = req.params;
+    const limit = Number.parseInt(req.query.limit) || 100;
 
     const [logs] = await pool.query(
       `SELECT 
@@ -99,20 +100,20 @@ exports.getCabinetLogs = async (req, res) => {
       WHERE c.cabinet_id = ?
       ORDER BY al.timestamp DESC
       LIMIT ?`,
-      [cabinetId, limit],
-    )
+      [cabinetId, limit]
+    );
 
-    res.json(logs)
+    res.json(logs);
   } catch (error) {
-    console.error("Error fetching cabinet logs:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching cabinet logs:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 exports.getUserLogs = async (req, res) => {
   try {
-    const { userId } = req.params
-    const limit = Number.parseInt(req.query.limit) || 100
+    const { user_id } = req.params;
+    const limit = Number.parseInt(req.query.limit) || 100;
 
     const [logs] = await pool.query(
       `SELECT 
@@ -125,22 +126,22 @@ exports.getUserLogs = async (req, res) => {
         c.cabinet_id
       FROM access_logs al
       JOIN cabinets c ON al.cabinet_id = c.id
-      WHERE al.user_id = ?
+      WHERE al.user_id = ? 
       ORDER BY al.timestamp DESC
       LIMIT ?`,
-      [userId, limit],
-    )
+      [user_id, limit]
+    );
 
-    res.json(logs)
+    res.json(logs);
   } catch (error) {
-    console.error("Error fetching user logs:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching user logs:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 exports.getStatistics = async (req, res) => {
   try {
-    const { cabinetId, userId, startDate, endDate } = req.query
+    const { cabinetId, user_id, startDate, endDate } = req.query;
 
     let query = `
       SELECT 
@@ -151,42 +152,42 @@ exports.getStatistics = async (req, res) => {
       FROM access_logs al
       JOIN cabinets c ON al.cabinet_id = c.id
       WHERE 1=1
-    `
+    `;
 
-    const params = []
+    const params = [];
 
     if (cabinetId) {
-      query += " AND c.cabinet_id = ?"
-      params.push(cabinetId)
+      query += " AND c.cabinet_id = ?";
+      params.push(cabinetId);
     }
 
-    if (userId) {
-      query += " AND al.user_id = ?"
-      params.push(userId)
+    if (user_id) {
+      query += " AND al.user_id = ?";
+      params.push(user_id);
     }
 
     if (startDate) {
-      query += " AND al.timestamp >= ?"
-      params.push(startDate)
+      query += " AND al.timestamp >= ?";
+      params.push(startDate);
     }
 
     if (endDate) {
-      query += " AND al.timestamp <= ?"
-      params.push(endDate)
+      query += " AND al.timestamp <= ?";
+      params.push(endDate);
     }
 
-    const [stats] = await pool.query(query, params)
+    const [stats] = await pool.query(query, params);
 
-    res.json(stats[0])
+    res.json(stats[0]);
   } catch (error) {
-    console.error("Error fetching statistics:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error fetching statistics:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
 
 exports.createAccessLogFromESP32 = async (req, res) => {
   try {
-    const { device_id, event_type, timestamp, data } = req.body;
+    const { device_id, event_type, timestamp, data, message } = req.body;
 
     // Validate required fields
     if (!device_id || !event_type || !timestamp) {
@@ -197,7 +198,7 @@ exports.createAccessLogFromESP32 = async (req, res) => {
 
     // Find cabinet by device_id
     const [cabinets] = await pool.query(
-      "SELECT id, owner_id FROM cabinets WHERE cabinet_id = ?", 
+      "SELECT id, owner_id FROM cabinets WHERE cabinet_id = ?",
       [device_id]
     );
 
@@ -211,16 +212,15 @@ exports.createAccessLogFromESP32 = async (req, res) => {
     let success = false;
     let alert_type = "none";
     let user_id = null;
-    const access_type = "face"; // default as required
+    const access_type = "face";
 
     switch (event_type) {
       case "verify_success":
         success = true;
         alert_type = "none";
-
         if (data?.acc) {
           const [users] = await pool.query(
-            "SELECT id FROM users WHERE username = ?", 
+            "SELECT id FROM users WHERE username = ?",
             [data.acc]
           );
           if (users.length > 0) user_id = users[0].id;
@@ -228,7 +228,6 @@ exports.createAccessLogFromESP32 = async (req, res) => {
         break;
 
       case "verify_failed":
-      case "unauthorized":
         success = false;
         alert_type = "unauthorized";
         break;
@@ -242,27 +241,33 @@ exports.createAccessLogFromESP32 = async (req, res) => {
         alert_type = "none";
     }
 
-    const [result] = await pool.query(
+    // Convert timestamp
+    const cleanTimestamp = timestamp.split("+")[0]; // "2025-12-09T08:05:16"
+
+    const [insertResult] = await pool.query(
       `INSERT INTO access_logs 
-        (cabinet_id, user_id, access_type, success, alert_type, timestamp) 
-       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?))`,
+        (cabinet_id, user_id, access_type, success, alert_type, timestamp)
+       VALUES (?, ?, ?, ?, ?, STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s'))`,
       [
         cabinet.id,
         user_id,
         access_type,
         success ? 1 : 0,
         alert_type,
-        timestamp / 1000
+        cleanTimestamp
       ]
     );
 
-    console.log(`[ESP32 Event] ${event_type} from ${device_id} -> Success: ${success}, Alert: ${alert_type}`);
+    console.log(
+      `[ESP32] Event=${event_type}, Device=${device_id}, Success=${success}, Alert=${alert_type}, Time=${cleanTimestamp}`
+    );
 
     res.status(201).json({
       message: "Access log recorded",
-      log_id: result.insertId,
+      log_id: insertResult.insertId,
       success,
-      alert_type
+      alert_type,
+      received_time: cleanTimestamp
     });
 
   } catch (error) {

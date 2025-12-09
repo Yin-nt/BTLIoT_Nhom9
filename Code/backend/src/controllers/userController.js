@@ -6,7 +6,7 @@ const faceService = require("../services/face") // Import face service for AI in
 
 const registerUser = async (req, res) => {
   try {
-    const { username, email, password, fullName } = req.body
+    const { username, email, password, full_name } = req.body
     const images = req.files // multer uploads
 
     // Validate required fields
@@ -32,13 +32,13 @@ const registerUser = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (username, email, password_hash, full_name, role) 
        VALUES (?, ?, ?, ?, 'user')`,
-      [username, email, passwordHash, fullName || null],
+      [username, email, passwordHash, full_name || null],
     )
 
     const userId = result.insertId
 
     // Create upload directory
-    const uploadDir = path.join(__dirname, "../../uploads/faces", userId.toString())
+    const uploadDir = path.join(__dirname, "../../uploads/images", userId.toString())
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true })
     }
@@ -47,7 +47,7 @@ const registerUser = async (req, res) => {
     for (let i = 0; i < images.length; i++) {
       const image = images[i]
       const filename = `face_${Date.now()}_${i}.jpg`
-      const imagePath = `/uploads/faces/${userId}/${filename}`
+      const imagePath = `/uploads/images/${userId}/${filename}`
       const filepath = path.join(uploadDir, filename)
 
       // Move file to permanent location
@@ -106,7 +106,7 @@ const getAllUsers = async (req, res) => {
       FROM users u
       LEFT JOIN user_face_images ufi ON u.id = ufi.user_id
       GROUP BY u.id
-      ORDER BY u.created_at DESC
+      ORDER BY u.id ASC
     `)
 
     res.json(users)
@@ -149,7 +149,7 @@ const getUserById = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { username, email, fullName, role } = req.body
+    const { username, email, full_name, role } = req.body
 
     // Check if user is admin
     if (req.user.role !== "admin") {
@@ -159,8 +159,8 @@ const updateUser = async (req, res) => {
     await pool.query(
       `UPDATE users 
        SET username = ?, email = ?, full_name = ?, role = ?
-       WHERE id = ?`,
-      [username, email, fullName || null, role, req.params.id],
+       WHERE users.id = ?`,
+      [username, email, full_name, role, req.params.id],
     )
 
     res.json({ message: "User updated successfully" })
@@ -178,9 +178,9 @@ const deleteUser = async (req, res) => {
     }
 
     // Delete user's face images and embeddings first
-    await pool.query("DELETE FROM face_embeddings WHERE user_id = ?", [req.params.id])
-    await pool.query("DELETE FROM user_face_images WHERE user_id = ?", [req.params.id])
-    await pool.query("DELETE FROM users WHERE id = ?", [req.params.id])
+    await pool.query("DELETE FROM face_embeddings WHERE face_embeddings.user_id = ?", [req.params.id])
+    await pool.query("DELETE FROM user_face_images WHERE user_face_images.user_id = ?", [req.params.id])
+    await pool.query("DELETE FROM users WHERE users.id = ?", [req.params.id])
 
     res.json({ message: "User deleted successfully" })
   } catch (error) {

@@ -58,8 +58,8 @@ export const api = {
       method: "DELETE",
     }),
 
-  changePassword: (userId: number, data: { currentPassword: string; newPassword: string }) =>
-    apiRequest(`/api/users/${userId}/change-password`, {
+  changePassword: (user_id: number, data: { currentPassword: string; newPassword: string }) =>
+    apiRequest(`/api/users/${user_id}/change-password`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -75,29 +75,29 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  updateDevice: (id: number, data: { name: string; location: string }) =>
-    apiRequest(`/api/cabinets/${id}`, {
+  updateDevice: (cabinet_id: number, data: {name: string; location: string, owner_id: number }) =>
+    apiRequest(`/api/cabinets/${cabinet_id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  deleteDevice: (id: number) =>
-    apiRequest(`/api/cabinets/${id}`, {
+  deleteDevice: (cabinet_id: number) =>
+    apiRequest(`/api/cabinets/${cabinet_id}`, {
       method: "DELETE",
     }),
 
-  unlockCabinet: (cabinetId: number) =>
-    apiRequest(`/api/cabinets/${cabinetId}/unlock`, {
+  unlockCabinet: (cabinet_id: number) =>
+    apiRequest(`/api/cabinets/${cabinet_id}/unlock`, {
       method: "POST",
     }),
 
-  lockCabinet: (cabinetId: number) =>
-    apiRequest(`/api/cabinets/${cabinetId}/lock`, {
+  lockCabinet: (cabinet_id: number) =>
+    apiRequest(`/api/cabinets/${cabinet_id}/lock`, {
       method: "POST",
     }),
 
-  assignCabinetOwner: (cabinetId: number, ownerId: number) =>
-    apiRequest(`/api/cabinets/${cabinetId}/assign-owner`, {
+  assignCabinetOwner: (cabinet_id: number, ownerId: number) =>
+    apiRequest(`/api/cabinets/${cabinet_id}/assign-owner`, {
       method: "POST",
       body: JSON.stringify({ owner_id: ownerId }),
     }),
@@ -120,10 +120,23 @@ export const api = {
       method: "POST",
     }),
 
+  generatePairingCode: (cabinet_id: number) =>
+  apiRequest("/api/cabinets/pairing/generate", {
+    method: "POST",
+    body: JSON.stringify({ cabinet_id }),
+  }),
+
+  pairDevice: (pairing_code: string, mac: string) =>
+  apiRequest("/api/cabinets/pairing/pair", {
+    method: "POST",
+    body: JSON.stringify({ pairing_code, mac}),
+  }),
+
+
   // Access Logs
   getAccessLogs: (limit = 50) => apiRequest(`/api/access-logs?limit=${limit}`),
 
-  getCabinetLogs: (cabinetId: string, limit = 50) => apiRequest(`/api/cabinets/${cabinetId}/logs?limit=${limit}`),
+  getCabinetLogs: (cabinet_id: string, limit = 50) => apiRequest(`/api/cabinets/${cabinet_id}/logs?limit=${limit}`),
 
   // Alerts
   getAlerts: (limit = 20) => apiRequest(`/api/cabinets/alerts?limit=${limit}`),

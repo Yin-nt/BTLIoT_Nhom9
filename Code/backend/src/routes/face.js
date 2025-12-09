@@ -14,7 +14,7 @@ const upload = multer({
 router.post("/register", auth, upload.array("images", 20), faceController.registerFaces)
 
 // Verify face from uploaded image
-router.post("/verify", upload.single("image"), faceController.verifyFace)
+router.post("/verify", upload.single("images"), faceController.verifyFace)
 
 // Verify face from ESP32 (base64 image)
 router.post("/verify-esp32", faceController.verifyFromESP32)

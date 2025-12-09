@@ -100,7 +100,7 @@ export default function MyCabinetsPage() {
         "✅ Yêu cầu đăng ký tủ đã được gửi!\n\nVui lòng chờ admin phê duyệt để có thể sử dụng tủ."
       );
     } catch (error) {
-      console.error("[v0] Error requesting cabinet:", error);
+      console.error(" Error requesting cabinet:", error);
       alert("Lỗi: " + (error as Error).message);
     }
   };

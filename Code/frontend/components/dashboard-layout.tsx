@@ -19,6 +19,7 @@ import {
   Bell,
 } from "lucide-react";
 
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -30,11 +31,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (user) {
       const userData = JSON.parse(user);
       setUserRole(userData.role);
+
+      // Check quyền
+      const isAdminRoute = pathname.startsWith("/admin");
+      if (isAdminRoute && userData.role !== "admin") {
+        router.push("/unauthorized");
+      }
+    } else {
+      router.push("/login"); // Chưa login → đẩy về login
     }
-  }, []);
+  }, [pathname]);
+
 
   const userNavigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Tủ của tôi", href: "/my-cabinets", icon: Lock },
     { name: "Lịch sử", href: "/history", icon: History },
     { name: "Cảnh báo", href: "/alerts", icon: Bell },
@@ -51,7 +60,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const adminOnlyNavigation = [
     { name: "Quản lý Users", href: "/admin/users", icon: Users },
     { name: "Quản lý Devices", href: "/admin/devices", icon: Lock },
-    { name: "Cài đặt", href: "/admin/settings", icon: Settings },
+    // { name: "Cài đặt", href: "/admin/settings", icon: Settings },
   ];
 
   const navigation = userRole === "admin" ? adminNavigation : userNavigation;

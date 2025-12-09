@@ -1,33 +1,33 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, Clock, Filter } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useEffect, useState } from "react";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, XCircle, Clock, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface AccessLog {
-  id: number
-  username: string
-  email: string
-  cabinet_name: string
-  cabinet_id: string
-  access_type: string
-  success: string
-  timestamp: string
-  confidence_score: number
+  id: number;
+  username: string;
+  email: string;
+  cabinet_name: string;
+  cabinet_id: string;
+  access_type: string;
+  success: number;
+  timestamp: string;
+  confidence_score: number;
 }
 
 export default function HistoryPage() {
-  const [logs, setLogs] = useState<AccessLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState("")
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("");
 
   useEffect(() => {
-    fetchHistory()
-  }, [])
+    fetchHistory();
+  }, []);
 
   const fetchHistory = async () => {
     try {
@@ -44,11 +44,36 @@ export default function HistoryPage() {
     }
   }
 
+  // const fetchHistory = async () => {
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const role = localStorage.getItem("role"); // 'admin' hoặc 'user'
+  //     const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+
+  //     const endpoint =
+  //       role === "admin"
+  //         ? `${process.env.NEXT_PUBLIC_API_URL}/api/access-logs/all?limit=100`
+  //         : `${process.env.NEXT_PUBLIC_API_URL}/api/access-logs/user/${user.id}?limit=100`;
+
+  //     const response = await fetch(endpoint, {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
+
+  //     const data = await response.json();
+  //     setLogs(data.logs || data || []);
+  //   } catch (error) {
+  //     console.error("Error fetching history:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const filteredLogs = logs.filter(
     (log) =>
       log.username?.toLowerCase().includes(filter.toLowerCase()) ||
-      log.cabinet_name?.toLowerCase().includes(filter.toLowerCase()),
-  )
+      log.cabinet_name?.toLowerCase().includes(filter.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -90,10 +115,10 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-4">
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          log.success === "success" ? "bg-green-100" : "bg-red-100"
+                          log.success === 1 ? "bg-green-100" : "bg-red-100"
                         }`}
                       >
-                        {log.success === "success" ? (
+                        {log.success === 1 ? (
                           <CheckCircle className="h-5 w-5 text-green-600" />
                         ) : (
                           <XCircle className="h-5 w-5 text-red-600" />
@@ -101,27 +126,33 @@ export default function HistoryPage() {
                       </div>
                       <div>
                         <p className="font-semibold">
-                          {log.username || "Unknown"} - {log.cabinet_name || log.cabinet_id}
+                          {log.username || "Unknown"} -{" "}
+                          {log.cabinet_name || log.cabinet_id}
                         </p>
                         <p className="text-sm text-gray-600">{log.email}</p>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Clock className="h-3 w-3" />
-                          <span>{new Date(log.timestamp).toLocaleString("vi-VN")}</span>
+                          <span>
+                            {new Date(log.timestamp).toLocaleString("vi-VN")}
+                          </span>
                           {log.confidence_score && (
-                            <span className="ml-2 text-xs">Độ tin cậy: {(log.confidence_score * 100).toFixed(1)}%</span>
+                            <span className="ml-2 text-xs">
+                              Độ tin cậy:{" "}
+                              {(log.confidence_score * 100).toFixed(1)}%
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
                     <Badge
-                      variant={log.success === "success" ? "default" : "destructive"}
+                      variant={log.success === 1 ? "default" : "destructive"}
                       className={
-                        log.success === "success"
+                        log.success === 1
                           ? "bg-green-100 text-green-700 hover:bg-green-100"
                           : "bg-red-100 text-red-700 hover:bg-red-100"
                       }
                     >
-                      {log.success === "success" ? "Thành công" : "Thất bại"}
+                      {log.success === 1 ? "Thành công" : "Thất bại"}
                     </Badge>
                   </div>
                 ))
@@ -131,5 +162,5 @@ export default function HistoryPage() {
         </Card>
       </div>
     </DashboardLayout>
-  )
+  );
 }

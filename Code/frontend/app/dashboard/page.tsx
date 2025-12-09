@@ -12,7 +12,7 @@ interface Cabinet {
   cabinet_id: string;
   name: string;
   location: string;
-  lock_status: string;
+  status: string;
   online_status: string;
   owner_id: number | null;
 }
@@ -55,16 +55,16 @@ export default function DashboardPage() {
         const usersData = await usersResponse.json();
         setUserCount(usersData.length);
       } catch (error) {
-        console.log("[v0] Not admin, skipping user count");
+        console.log(" Not admin, skipping user count");
       }
     } catch (error) {
-      console.error("[v0] Error fetching dashboard data:", error);
+      console.error(" Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleLock = async (cabinetId: string, currentStatus: string) => {
+  const handleToggleLock = async (cabinetId: number, currentStatus: string) => {
     try {
       const token = localStorage.getItem("token");
       const action = currentStatus === "locked" ? "unlock" : "lock";
@@ -84,14 +84,14 @@ export default function DashboardPage() {
         alert("Lỗi: " + error.error);
       }
     } catch (error) {
-      console.error("[v0] Error toggling lock:", error);
+      console.error(" Error toggling lock:", error);
       alert("Lỗi kết nối");
     }
   };
 
-  const lockedCount = cabinets.filter((c) => c.lock_status === "locked").length;
+  const lockedCount = cabinets.filter((c) => c.status === "locked").length;
   const unlockedCount = cabinets.filter(
-    (c) => c.lock_status === "unlocked"
+    (c) => c.status === "unlocked"
   ).length;
 
   return (
@@ -175,7 +175,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Trạng thái:</span>
                           <div className="flex items-center gap-2">
-                            {cabinet.lock_status === "locked" ? (
+                            {cabinet.status === "locked" ? (
                               <>
                                 <Lock className="h-4 w-4 text-red-500" />
                                 <span className="text-sm font-semibold text-red-500">
@@ -196,13 +196,13 @@ export default function DashboardPage() {
                           className="w-full bg-linear-to-r from-[#E4002B] to-[#FF6B35]"
                           onClick={() =>
                             handleToggleLock(
-                              cabinet.cabinet_id,
-                              cabinet.lock_status
+                              cabinet.id,
+                              cabinet.status
                             )
                           }
                           disabled={cabinet.online_status === "offline"}
                         >
-                          {cabinet.lock_status === "locked" ? (
+                          {cabinet.status === "locked" ? (
                             <>
                               <Unlock className="h-4 w-4 mr-2" />
                               Mở khóa từ xa
